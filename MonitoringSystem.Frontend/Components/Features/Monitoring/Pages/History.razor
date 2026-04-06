@@ -1,6 +1,6 @@
 @page "/history"
-@* 핵심 해결책: 페이지 상호작용 활성화 (WebAssembly를 쓴다면 InteractiveWebAssembly로 변경하세요) *@
-@rendermode InteractiveServer 
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Operator")]
 
 @using MonitoringSystem.Frontend.Services.Monitoring
 @using MonitoringSystem.Shared.Models

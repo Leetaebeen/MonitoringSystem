@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR.Client;
+using MonitoringSystem.Frontend.Services.Auth;
 using MonitoringSystem.Shared.Models;
 
 namespace MonitoringSystem.Frontend.Services.Monitoring;
@@ -6,12 +7,14 @@ namespace MonitoringSystem.Frontend.Services.Monitoring;
 public class MonitoringHubClient : IAsyncDisposable
 {
     private readonly IConfiguration _configuration;
+    private readonly AuthService _authService;
     private HubConnection? _hubConnection;
     private string? _currentGroup; // "all" | "equipment:{id}" | "line:{id}"
 
-    public MonitoringHubClient(IConfiguration configuration)
+    public MonitoringHubClient(IConfiguration configuration, AuthService authService)
     {
         _configuration = configuration;
+        _authService = authService;
     }
 
     public async Task StartAsync(
@@ -26,7 +29,11 @@ public class MonitoringHubClient : IAsyncDisposable
         var backendBaseUrl = (_configuration["BackendApi:BaseUrl"] ?? "https://localhost:7280").TrimEnd('/');
 
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl($"{backendBaseUrl}/hubs/monitoring")
+            .WithUrl($"{backendBaseUrl}/hubs/monitoring", options =>
+            {
+                // JWT 토큰을 쿼리스트링으로 전달 (WebSocket은 헤더 불가)
+                options.AccessTokenProvider = () => Task.FromResult(_authService.Token);
+            })
             .WithAutomaticReconnect()
             .Build();
 

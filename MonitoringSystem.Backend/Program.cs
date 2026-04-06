@@ -1,13 +1,17 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.IdentityModel.Tokens;
 using MonitoringSystem.Backend.HealthChecks;
 using MonitoringSystem.Backend.BackgroundServices;
 using MonitoringSystem.Backend.Data;
 using MonitoringSystem.Backend.Hubs;
+using MonitoringSystem.Backend.Services.Auth;
 using MonitoringSystem.Backend.Services.Kafka;
 using MonitoringSystem.Backend.Services.Monitoring;
 using MonitoringSystem.Backend.Services.Realtime;
 using Serilog;
+using System.Text;
 using System.Text.Json;
 
 Log.Logger = new LoggerConfiguration()
@@ -34,9 +38,43 @@ builder.Host.UseSerilog((context, services, configuration) =>
         .Enrich.WithMachineName()
         .Enrich.WithThreadId());
 
+var jwtSecret = builder.Configuration["Jwt:Secret"]
+    ?? throw new InvalidOperationException("Jwt:Secret이 설정되지 않았습니다.");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+        };
+        // SignalR: 쿼리스트링에서 토큰 추출
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
+    });
+builder.Services.AddAuthorization();
+
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
 builder.Services.AddProblemDetails();
+builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.AddDbContext<MonitoringDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IMonitoringQueryService, MonitoringQueryService>();
@@ -68,6 +106,8 @@ using (var scope = app.Services.CreateScope())
 
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 app.MapHub<MonitoringHub>("/hubs/monitoring");
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions

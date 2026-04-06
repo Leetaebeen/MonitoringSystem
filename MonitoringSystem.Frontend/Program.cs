@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Components.Authorization;
 using MonitoringSystem.Frontend.Components;
+using MonitoringSystem.Frontend.Services.Auth;
 using MonitoringSystem.Frontend.Services.Monitoring;
 using Serilog;
 
@@ -22,11 +24,18 @@ builder.Host.UseSerilog((context, services, configuration) =>
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddAuthorizationCore();
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AuthenticationStateProvider, TokenAuthenticationStateProvider>();
+builder.Services.AddScoped<TokenDelegatingHandler>();
+
 var backendBaseUrl = builder.Configuration["BackendApi:BaseUrl"] ?? "https://localhost:7280";
 builder.Services.AddHttpClient("BackendApi", client =>
 {
     client.BaseAddress = new Uri(backendBaseUrl);
-});
+}).AddHttpMessageHandler<TokenDelegatingHandler>();
+
 builder.Services.AddScoped<MonitoringApiClient>();
 builder.Services.AddScoped<MonitoringHubClient>();
 

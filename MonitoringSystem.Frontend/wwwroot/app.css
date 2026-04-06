@@ -138,3 +138,46 @@ h1:focus {
 .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+/* ===== 로그인 페이지 ===== */
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 60vh;
+    padding: 2rem;
+}
+
+.login-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    padding: 2.5rem 2rem;
+    width: 100%;
+    max-width: 400px;
+}
+
+.login-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 0.25rem;
+}
+
+.login-subtitle {
+    text-align: center;
+    color: #6b7280;
+    margin-bottom: 1.5rem;
+}
+
+.login-hint {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 0.75rem;
+}
+
+/* ===== 네비게이션 사용자 정보 ===== */
+.top-nav-user {
+    color: rgba(255,255,255,0.8);
+    font-size: 0.85rem;
+    margin-left: auto;
+    padding: 0 0.5rem;
+}

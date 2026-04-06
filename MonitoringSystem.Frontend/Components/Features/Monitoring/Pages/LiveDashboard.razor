@@ -1,11 +1,13 @@
 @page "/"
 @page "/live"
 @rendermode InteractiveServer
+@attribute [Authorize]
 @implements IAsyncDisposable
 @using MonitoringSystem.Frontend.Services.Monitoring
 @using MonitoringSystem.Shared.Models
 @inject MonitoringApiClient MonitoringApiClient
 @inject MonitoringHubClient MonitoringHubClient
+@inject AuthService AuthService
 
 <PageTitle>실시간 대시보드</PageTitle>
 
@@ -162,6 +164,12 @@
     private int AlertCount => _recentData.Count(x => x.IsAlert);
     private double AverageTemperature => _recentData.Count == 0 ? 0 : _recentData.Average(x => x.Temperature);
     private double AverageVibration => _recentData.Count == 0 ? 0 : _recentData.Average(x => x.VibrationMmS);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await AuthService.TryRestoreFromSessionAsync();
+    }
 
     protected override async Task OnInitializedAsync()
     {

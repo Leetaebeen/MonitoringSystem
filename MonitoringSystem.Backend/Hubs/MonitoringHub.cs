@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace MonitoringSystem.Backend.Hubs;
 
+[Authorize]
 public class MonitoringHub : Hub
 {
     private readonly ILogger<MonitoringHub> _logger;

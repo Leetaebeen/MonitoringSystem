@@ -1,5 +1,6 @@
 @page "/system-status"
 @rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
 @using MonitoringSystem.Frontend.Services.Monitoring
 @inject MonitoringApiClient MonitoringApiClient
 

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using MonitoringSystem.Backend.Services.Monitoring;
@@ -7,6 +8,7 @@ namespace MonitoringSystem.Backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class MonitoringController : ControllerBase
 {
     private readonly IMonitoringQueryService _queryService;
@@ -42,6 +44,7 @@ public class MonitoringController : ControllerBase
     }
 
     [HttpGet("history")]
+    [Authorize(Roles = "Admin,Operator")]
     public async Task<ActionResult<HistoryQueryResult>> GetHistory(
         [FromQuery] DateTime? fromUtc = null,
         [FromQuery] DateTime? toUtc = null,
