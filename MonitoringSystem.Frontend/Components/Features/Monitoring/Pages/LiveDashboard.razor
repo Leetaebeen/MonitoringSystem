@@ -27,6 +27,38 @@
     </div>
 }
 
+<div class="filter-bar mb-3 d-flex gap-3 align-items-center">
+    <div>
+        <label class="form-label mb-0 me-2"><strong>라인 필터</strong></label>
+        <select class="form-select form-select-sm d-inline-block w-auto" @onchange="OnLineFilterChangedAsync">
+            <option value="">전체</option>
+            @foreach (var lineId in _availableLineIds)
+            {
+                <option value="@lineId" selected="@(_selectedLineId == lineId)">@lineId</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label class="form-label mb-0 me-2"><strong>설비 필터</strong></label>
+        <select class="form-select form-select-sm d-inline-block w-auto" @onchange="OnEquipmentFilterChangedAsync">
+            <option value="">전체</option>
+            @foreach (var equipmentId in _availableEquipmentIds)
+            {
+                <option value="@equipmentId" selected="@(_selectedEquipmentId == equipmentId)">@equipmentId</option>
+            }
+        </select>
+    </div>
+    @if (!string.IsNullOrEmpty(_selectedLineId) || !string.IsNullOrEmpty(_selectedEquipmentId))
+    {
+        <div>
+            <span class="badge bg-primary">
+                구독 중: @_currentGroupLabel
+            </span>
+            <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="ResetFilterAsync">전체 보기</button>
+        </div>
+    }
+</div>
+
 @if (_latestData is null && !_isLoading)
 {
     <div class="alert alert-warning" role="alert">
@@ -118,6 +150,15 @@
     private readonly List<SensorData> _recentData = [];
     private DateTime _lastRealtimeAppliedAtUtc = DateTime.MinValue;
 
+    private string? _selectedEquipmentId;
+    private string? _selectedLineId;
+    private List<string> _availableEquipmentIds = [];
+    private List<string> _availableLineIds = [];
+
+    private string _currentGroupLabel => !string.IsNullOrEmpty(_selectedEquipmentId)
+        ? $"설비 {_selectedEquipmentId}"
+        : $"라인 {_selectedLineId}";
+
     private int AlertCount => _recentData.Count(x => x.IsAlert);
     private double AverageTemperature => _recentData.Count == 0 ? 0 : _recentData.Average(x => x.Temperature);
     private double AverageVibration => _recentData.Count == 0 ? 0 : _recentData.Average(x => x.VibrationMmS);
@@ -142,8 +183,8 @@
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
             var latest = await MonitoringApiClient.GetLatestAsync(
                 MaxRows,
-                null,
-                null,
+                _selectedLineId,
+                _selectedEquipmentId,
                 cts.Token);
 
             _latestData = null;
@@ -152,6 +193,16 @@
             {
                 _recentData.AddRange(latest.Take(MaxRows));
                 _latestData = _recentData[0];
+
+                // 처음 로드 시 드롭다운 옵션 추출
+                if (_availableEquipmentIds.Count == 0)
+                {
+                    _availableEquipmentIds = latest.Select(x => x.EquipmentId).Distinct().Order().ToList();
+                }
+                if (_availableLineIds.Count == 0)
+                {
+                    _availableLineIds = latest.Select(x => x.LineId).Distinct().Order().ToList();
+                }
             }
         }
         catch (Exception ex)
@@ -191,6 +242,44 @@
                 ? $"실시간 연결 실패: {ex.Message}"
                 : $"{_errorMessage} / 실시간 연결 실패: {ex.Message}";
         }
+    }
+
+    private async Task OnEquipmentFilterChangedAsync(ChangeEventArgs e)
+    {
+        _selectedEquipmentId = e.Value?.ToString();
+        _selectedLineId = null; // 설비 선택 시 라인 필터 초기화
+
+        var groupName = string.IsNullOrEmpty(_selectedEquipmentId)
+            ? "all"
+            : $"equipment:{_selectedEquipmentId}";
+
+        await MonitoringHubClient.SubscribeToGroupAsync(groupName);
+        await LoadInitialDataAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnLineFilterChangedAsync(ChangeEventArgs e)
+    {
+        _selectedLineId = e.Value?.ToString();
+        _selectedEquipmentId = null; // 라인 선택 시 설비 필터 초기화
+
+        var groupName = string.IsNullOrEmpty(_selectedLineId)
+            ? "all"
+            : $"line:{_selectedLineId}";
+
+        await MonitoringHubClient.SubscribeToGroupAsync(groupName);
+        await LoadInitialDataAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ResetFilterAsync()
+    {
+        _selectedEquipmentId = null;
+        _selectedLineId = null;
+
+        await MonitoringHubClient.SubscribeToGroupAsync("all");
+        await LoadInitialDataAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
     private void ApplyRealtimeData(SensorData data)

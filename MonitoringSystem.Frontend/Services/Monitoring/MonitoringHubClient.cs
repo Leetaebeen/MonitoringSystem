@@ -7,6 +7,7 @@ public class MonitoringHubClient : IAsyncDisposable
 {
     private readonly IConfiguration _configuration;
     private HubConnection? _hubConnection;
+    private string? _currentGroup; // "all" | "equipment:{id}" | "line:{id}"
 
     public MonitoringHubClient(IConfiguration configuration)
     {
@@ -36,7 +37,29 @@ public class MonitoringHubClient : IAsyncDisposable
         _hubConnection.Closed += _ => onConnectionStateChanged("연결 끊김");
 
         await _hubConnection.StartAsync();
+        _currentGroup = "all"; // 서버의 OnConnectedAsync에서 자동 가입됨
         await onConnectionStateChanged("연결됨");
+    }
+
+    /// <summary>
+    /// 특정 그룹만 구독합니다. 기존 구독 그룹은 탈퇴합니다.
+    /// groupName: "all" | "equipment:{EquipmentId}" | "line:{LineId}"
+    /// </summary>
+    public async Task SubscribeToGroupAsync(string groupName)
+    {
+        if (_hubConnection is null || _hubConnection.State != HubConnectionState.Connected)
+            return;
+
+        if (_currentGroup == groupName)
+            return;
+
+        if (_currentGroup is not null)
+        {
+            await _hubConnection.InvokeAsync("LeaveGroupAsync", _currentGroup);
+        }
+
+        await _hubConnection.InvokeAsync("JoinGroupAsync", groupName);
+        _currentGroup = groupName;
     }
 
     public async ValueTask DisposeAsync()
