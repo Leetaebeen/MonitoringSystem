@@ -6,7 +6,15 @@ using MonitoringSystem.Backend.Data;
 using MonitoringSystem.Backend.Hubs;
 using MonitoringSystem.Backend.Services.Monitoring;
 using MonitoringSystem.Backend.Services.Realtime;
+using Serilog;
 using System.Text.Json;
+
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
+
+try
+{
 
 var webRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
 Directory.CreateDirectory(webRoot);
@@ -16,6 +24,14 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     Args = args,
     WebRootPath = "wwwroot"
 });
+
+builder.Host.UseSerilog((context, services, configuration) =>
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .Enrich.WithMachineName()
+        .Enrich.WithThreadId());
 
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
@@ -78,3 +94,13 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 app.MapGet("/", () => "환영합니다! 백엔드 메인 페이지가 정상적으로 작동 중입니다!");
 
 app.Run();
+
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "백엔드 시작 중 치명적 오류 발생");
+}
+finally
+{
+    Log.CloseAndFlush();
+}

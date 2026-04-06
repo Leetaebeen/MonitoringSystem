@@ -1,7 +1,22 @@
 using MonitoringSystem.Frontend.Components;
 using MonitoringSystem.Frontend.Services.Monitoring;
+using Serilog;
+
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
+
+try
+{
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, services, configuration) =>
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .Enrich.WithMachineName());
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -34,3 +49,13 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "프론트엔드 시작 중 치명적 오류 발생");
+}
+finally
+{
+    Log.CloseAndFlush();
+}

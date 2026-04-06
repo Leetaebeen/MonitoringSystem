@@ -1,11 +1,25 @@
 ﻿using Confluent.Kafka;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MonitoringSystem.Simulator.Config;
 using MonitoringSystem.Simulator.Services;
+using Serilog;
+
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
+
+try
+{
 
 var builder = Host.CreateApplicationBuilder(args);
+
+builder.Services.AddSerilog((services, lc) => lc
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .Enrich.WithMachineName());
 
 builder.Services.Configure<SimulatorOptions>(builder.Configuration.GetSection("Simulator"));
 builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<SimulatorOptions>>().Value);
@@ -14,6 +28,7 @@ builder.Services.AddSingleton<KafkaSensorProducer>();
 
 using var host = builder.Build();
 
+var logger = host.Services.GetRequiredService<ILogger<Program>>();
 var options = host.Services.GetRequiredService<SimulatorOptions>();
 var generator = host.Services.GetRequiredService<SensorDataGenerator>();
 await using var producer = host.Services.GetRequiredService<KafkaSensorProducer>();
@@ -25,7 +40,7 @@ Console.CancelKeyPress += (_, e) =>
     cts.Cancel();
 };
 
-Console.WriteLine("Kafka 시뮬레이터 시작. 종료하려면 Ctrl+C를 누르세요.");
+logger.LogInformation("Kafka 시뮬레이터 시작. 종료하려면 Ctrl+C를 누르세요.");
 
 while (!cts.Token.IsCancellationRequested)
 {
@@ -34,7 +49,11 @@ while (!cts.Token.IsCancellationRequested)
     try
     {
         var result = await producer.ProduceAsync(sensorData, cts.Token);
-        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] sent to {result.TopicPartitionOffset}: {result.Message.Value}");
+        logger.LogInformation(
+            "센서 데이터 전송. Offset={Offset} EquipmentId={EquipmentId} Temperature={Temperature}",
+            result.TopicPartitionOffset,
+            sensorData.EquipmentId,
+            sensorData.Temperature);
     }
     catch (OperationCanceledException)
     {
@@ -42,7 +61,7 @@ while (!cts.Token.IsCancellationRequested)
     }
     catch (ProduceException<Null, string> ex)
     {
-        Console.WriteLine($"Kafka 전송 실패: {ex.Error.Reason}");
+        logger.LogError("Kafka 전송 실패: {Reason}", ex.Error.Reason);
     }
 
     try
@@ -53,4 +72,16 @@ while (!cts.Token.IsCancellationRequested)
     {
         break;
     }
+}
+
+logger.LogInformation("시뮬레이터 종료");
+
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "시뮬레이터 시작 중 치명적 오류 발생");
+}
+finally
+{
+    Log.CloseAndFlush();
 }
