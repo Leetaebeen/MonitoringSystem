@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
+﻿using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Json;
 using System.Security.Claims;
@@ -38,17 +38,17 @@ public class AuthService
             var response = await client.PostAsJsonAsync("api/auth/login", new { username, password });
 
             if (!response.IsSuccessStatusCode)
+            {
                 return false;
+            }
 
             var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-            if (result is null) return false;
+            if (result is null)
+            {
+                return false;
+            }
 
-            Token = result.Token;
-            Username = result.Username;
-            Role = result.Role;
-
-            await _sessionStorage.SetAsync(TokenKey, Token);
-            OnAuthStateChanged?.Invoke();
+            await ApplyAuthenticationAsync(result);
             return true;
         }
         catch (Exception ex)
@@ -58,12 +58,44 @@ public class AuthService
         }
     }
 
+    public async Task<AuthResult> RegisterAsync(string username, string password)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient("BackendApi");
+            var response = await client.PostAsJsonAsync("api/auth/register", new { username, password });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadFromJsonAsync<ApiErrorResponse>();
+                return new AuthResult(false, error?.Message ?? "회원가입에 실패했습니다.");
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+            if (result is null)
+            {
+                return new AuthResult(false, "회원가입 응답을 확인할 수 없습니다.");
+            }
+
+            await ApplyAuthenticationAsync(result);
+            return new AuthResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "회원가입 요청 중 오류 발생");
+            return new AuthResult(false, "회원가입 요청 처리 중 오류가 발생했습니다.");
+        }
+    }
+
     public async Task TryRestoreFromSessionAsync()
     {
         try
         {
             var result = await _sessionStorage.GetAsync<string>(TokenKey);
-            if (!result.Success || string.IsNullOrEmpty(result.Value)) return;
+            if (!result.Success || string.IsNullOrEmpty(result.Value))
+            {
+                return;
+            }
 
             var token = result.Value;
             var handler = new JwtSecurityTokenHandler();
@@ -85,7 +117,7 @@ public class AuthService
         }
         catch
         {
-            // 세션 스토리지 접근 불가(prerender 등) — 무시
+            // Session storage may be unavailable during prerendering.
         }
     }
 
@@ -95,9 +127,29 @@ public class AuthService
         Username = null;
         Role = null;
 
-        try { await _sessionStorage.DeleteAsync(TokenKey); } catch { }
+        try
+        {
+            await _sessionStorage.DeleteAsync(TokenKey);
+        }
+        catch
+        {
+        }
+
         OnAuthStateChanged?.Invoke();
     }
 
+    private async Task ApplyAuthenticationAsync(LoginResponse result)
+    {
+        Token = result.Token;
+        Username = result.Username;
+        Role = result.Role;
+
+        await _sessionStorage.SetAsync(TokenKey, Token);
+        OnAuthStateChanged?.Invoke();
+    }
+
+    public record AuthResult(bool Success, string? ErrorMessage);
+
     private record LoginResponse(string Token, string Username, string Role);
+    private record ApiErrorResponse(string Message);
 }

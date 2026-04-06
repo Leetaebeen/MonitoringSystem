@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MonitoringSystem.Backend.Data;
 
@@ -11,9 +12,11 @@ using MonitoringSystem.Backend.Data;
 namespace MonitoringSystem.Backend.Migrations
 {
     [DbContext(typeof(MonitoringDbContext))]
-    partial class MonitoringDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260406074235_AddAppUsers")]
+    partial class AddAppUsers
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

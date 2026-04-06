@@ -1,6 +1,7 @@
-@page "/login"
+﻿@page "/login"
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Components.Forms
+@using System.ComponentModel.DataAnnotations
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 
@@ -8,47 +9,93 @@
 
 <div class="login-container">
     <div class="login-card">
-        <h2 class="login-title">모니터링 시스템</h2>
-        <p class="login-subtitle">로그인이 필요합니다</p>
+        <div class="auth-mode-switch mb-4">
+            <button type="button" class="auth-mode-button @GetModeClass(false)" @onclick="ShowLoginMode">로그인</button>
+            <button type="button" class="auth-mode-button @GetModeClass(true)" @onclick="ShowRegisterMode">회원가입</button>
+        </div>
 
-        <EditForm Model="_model" OnValidSubmit="HandleLoginAsync">
+        <h2 class="login-title">모니터링 시스템</h2>
+        <p class="login-subtitle">@(_isRegisterMode ? "새 계정을 만들어 바로 시작하세요" : "로그인이 필요합니다")</p>
+
+        <EditForm Model="@CurrentModel" OnValidSubmit="HandleSubmitAsync">
             <DataAnnotationsValidator />
+            <ValidationSummary class="validation-summary mb-3" />
 
             @if (!string.IsNullOrEmpty(_errorMessage))
             {
                 <div class="alert alert-danger">@_errorMessage</div>
             }
 
+            @if (!string.IsNullOrEmpty(_successMessage))
+            {
+                <div class="alert alert-success">@_successMessage</div>
+            }
+
             <div class="mb-3">
                 <label class="form-label">아이디</label>
-                <InputText class="form-control" @bind-Value="_model.Username" placeholder="아이디 입력" />
+                <InputText class="form-control" @bind-Value="CurrentModel.Username" placeholder="아이디 입력" />
+                <ValidationMessage For="@(() => CurrentModel.Username)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">비밀번호</label>
-                <InputText class="form-control" type="password" @bind-Value="_model.Password" placeholder="비밀번호 입력" />
+                <InputText class="form-control" type="password" @bind-Value="CurrentModel.Password" placeholder="비밀번호 입력" />
+                <ValidationMessage For="@(() => CurrentModel.Password)" />
             </div>
 
+            @if (_isRegisterMode)
+            {
+                <div class="mb-3">
+                    <label class="form-label">비밀번호 확인</label>
+                    <InputText class="form-control" type="password" @bind-Value="_registerModel.ConfirmPassword" placeholder="비밀번호 다시 입력" />
+                    <ValidationMessage For="@(() => _registerModel.ConfirmPassword)" />
+                </div>
+            }
+
             <button type="submit" class="btn btn-primary w-100" disabled="@_isLoading">
-                @if (_isLoading) { <span>로그인 중...</span> } else { <span>로그인</span> }
+                @if (_isLoading)
+                {
+                    <span>@(_isRegisterMode ? "가입 처리 중..." : "로그인 중...")</span>
+                }
+                else
+                {
+                    <span>@(_isRegisterMode ? "회원가입" : "로그인")</span>
+                }
             </button>
         </EditForm>
 
         <div class="login-hint mt-3 text-muted small">
-            <div>테스트 계정: admin / admin123 (Admin)</div>
-            <div>operator / op123 (Operator) · viewer / view123 (Viewer)</div>
+            @if (_isRegisterMode)
+            {
+                <div>가입한 계정은 기본적으로 Operator 권한으로 생성됩니다.</div>
+                <div>회원가입이 완료되면 바로 로그인 상태로 이동합니다.</div>
+            }
+            else
+            {
+                <div>테스트 계정: admin / admin123 (Admin)</div>
+                <div>operator / op123 (Operator)</div>
+            }
         </div>
     </div>
 </div>
 
 @code {
-    private readonly LoginModel _model = new();
+    private readonly LoginModel _loginModel = new();
+    private readonly RegisterModel _registerModel = new();
     private string? _errorMessage;
+    private string? _successMessage;
     private bool _isLoading;
+    private bool _isRegisterMode;
+
+    private CredentialsModel CurrentModel => _isRegisterMode ? _registerModel : _loginModel;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (!firstRender)
+        {
+            return;
+        }
+
         await AuthService.TryRestoreFromSessionAsync();
         if (AuthService.IsAuthenticated)
         {
@@ -56,27 +103,89 @@
         }
     }
 
+    private Task ShowLoginMode()
+    {
+        _isRegisterMode = false;
+        _errorMessage = null;
+        _successMessage = null;
+        return Task.CompletedTask;
+    }
+
+    private Task ShowRegisterMode()
+    {
+        _isRegisterMode = true;
+        _errorMessage = null;
+        _successMessage = null;
+        return Task.CompletedTask;
+    }
+
+    private string GetModeClass(bool registerMode) => _isRegisterMode == registerMode ? "active" : string.Empty;
+
+    private Task HandleSubmitAsync() => _isRegisterMode ? HandleRegisterAsync() : HandleLoginAsync();
+
     private async Task HandleLoginAsync()
     {
         _isLoading = true;
         _errorMessage = null;
+        _successMessage = null;
 
-        var success = await AuthService.LoginAsync(_model.Username, _model.Password);
+        var success = await AuthService.LoginAsync(_loginModel.Username, _loginModel.Password);
 
         if (success)
         {
             Navigation.NavigateTo("/", forceLoad: false);
+            return;
         }
-        else
-        {
-            _errorMessage = "아이디 또는 비밀번호가 올바르지 않습니다.";
-            _isLoading = false;
-        }
+
+        _errorMessage = "아이디 또는 비밀번호가 올바르지 않습니다.";
+        _isLoading = false;
     }
 
-    private class LoginModel
+    private async Task HandleRegisterAsync()
     {
+        _isLoading = true;
+        _errorMessage = null;
+        _successMessage = null;
+
+        var result = await AuthService.RegisterAsync(_registerModel.Username, _registerModel.Password);
+
+        if (result.Success)
+        {
+            _successMessage = "회원가입이 완료되었습니다.";
+            Navigation.NavigateTo("/", forceLoad: false);
+            return;
+        }
+
+        _errorMessage = result.ErrorMessage ?? "회원가입에 실패했습니다.";
+        _isLoading = false;
+    }
+
+    private class CredentialsModel
+    {
+        [Required(ErrorMessage = "아이디를 입력해주세요.")]
+        [StringLength(20, MinimumLength = 3, ErrorMessage = "아이디는 3자 이상 20자 이하로 입력해주세요.")]
         public string Username { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "비밀번호를 입력해주세요.")]
+        [StringLength(50, MinimumLength = 4, ErrorMessage = "비밀번호는 4자 이상 입력해주세요.")]
         public string Password { get; set; } = string.Empty;
+    }
+
+    private sealed class LoginModel : CredentialsModel;
+
+    private sealed class RegisterModel : CredentialsModel, IValidatableObject
+    {
+        [Required(ErrorMessage = "비밀번호 확인을 입력해주세요.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (!string.Equals(Password, ConfirmPassword, StringComparison.Ordinal))
+            {
+                yield return new ValidationResult(
+                    "비밀번호 확인이 일치하지 않습니다.",
+                    new[] { nameof(ConfirmPassword) });
+            }
+        }
     }
 }

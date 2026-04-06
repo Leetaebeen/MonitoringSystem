@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
@@ -6,6 +7,7 @@ using MonitoringSystem.Backend.HealthChecks;
 using MonitoringSystem.Backend.BackgroundServices;
 using MonitoringSystem.Backend.Data;
 using MonitoringSystem.Backend.Hubs;
+using MonitoringSystem.Backend.Models;
 using MonitoringSystem.Backend.Services.Auth;
 using MonitoringSystem.Backend.Services.Kafka;
 using MonitoringSystem.Backend.Services.Monitoring;
@@ -75,6 +77,7 @@ builder.Services.AddControllers();
 builder.Services.AddSignalR();
 builder.Services.AddProblemDetails();
 builder.Services.AddSingleton<JwtTokenService>();
+builder.Services.AddScoped<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
 builder.Services.AddDbContext<MonitoringDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IMonitoringQueryService, MonitoringQueryService>();
@@ -102,6 +105,25 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<MonitoringDbContext>();
     dbContext.Database.Migrate();
+
+    // 기본 테스트 계정이 없으면 시드
+    if (!dbContext.Users.Any())
+    {
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<AppUser>>();
+        var seedAccounts = new[]
+        {
+            ("admin",    "admin123", "Admin"),
+            ("operator", "op123",    "Operator"),
+        };
+        foreach (var (username, password, role) in seedAccounts)
+        {
+            var user = new AppUser { Username = username, Role = role };
+            user.PasswordHash = hasher.HashPassword(user, password);
+            dbContext.Users.Add(user);
+        }
+        dbContext.SaveChanges();
+        Log.Information("기본 테스트 계정 시드 완료 (admin / operator / viewer)");
+    }
 }
 
 

@@ -1,4 +1,4 @@
-html, body {
+﻿html, body {
     font-family: 'Pretendard', 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background: #f5f7fb;
     color: #1f2937;
@@ -96,6 +96,12 @@ h1:focus {
     color: #92400e;
 }
 
+.alert-success {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+    color: #065f46;
+}
+
 .alert-secondary {
     background: #f1f5f9;
     border-color: #dbe4ef;
@@ -111,7 +117,10 @@ h1:focus {
 }
 
 .validation-message {
-    color: #ff8f8f;
+    color: #b91c1c;
+    display: block;
+    font-size: 0.875rem;
+    margin-top: 0.35rem;
 }
 
 .blazor-error-boundary {
@@ -138,7 +147,7 @@ h1:focus {
 .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
-/* ===== 로그인 페이지 ===== */
+
 .login-container {
     display: flex;
     justify-content: center;
@@ -150,7 +159,7 @@ h1:focus {
 .login-card {
     background: #fff;
     border-radius: 12px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
     padding: 2.5rem 2rem;
     width: 100%;
     max-width: 400px;
@@ -169,15 +178,70 @@ h1:focus {
     margin-bottom: 1.5rem;
 }
 
+.auth-mode-switch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    padding: 0.35rem;
+    border-radius: 999px;
+    background: #eff6ff;
+}
+
+.auth-mode-button {
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: #475569;
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.auth-mode-button.active {
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.14);
+}
+
+.auth-mode-button:hover {
+    color: #0f172a;
+}
+
+.validation-summary {
+    color: #b91c1c;
+}
+
 .login-hint {
     border-top: 1px solid #e5e7eb;
     padding-top: 0.75rem;
 }
 
-/* ===== 네비게이션 사용자 정보 ===== */
-.top-nav-user {
-    color: rgba(255,255,255,0.8);
-    font-size: 0.85rem;
+.top-nav-user-area {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     margin-left: auto;
-    padding: 0 0.5rem;
+}
+
+.top-nav-user {
+    color: #2f466f;
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0 0.25rem;
+}
+
+.top-nav-logout {
+    background: #eef4ff;
+    border: 1px solid #dde6f5;
+    border-radius: 6px;
+    color: #1f3661;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.top-nav-logout:hover {
+    background: #dbeafe;
+    color: #1d4ed8;
 }

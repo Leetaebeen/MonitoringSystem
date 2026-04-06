@@ -22,9 +22,10 @@ builder.Host.UseSerilog((context, services, configuration) =>
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents();  
 
 builder.Services.AddAuthorizationCore();
+builder.Services.AddAuthentication();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AuthenticationStateProvider, TokenAuthenticationStateProvider>();
@@ -50,12 +51,15 @@ if (!app.Environment.IsDevelopment())
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .AllowAnonymous();
 
 app.Run();
 

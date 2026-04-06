@@ -1,14 +1,34 @@
 using MonitoringSystem.Shared.Models;
+using MonitoringSystem.Frontend.Services.Auth;
 
 namespace MonitoringSystem.Frontend.Services.Monitoring;
 
 public class MonitoringApiClient
 {
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AuthService _authService;
 
-    public MonitoringApiClient(IHttpClientFactory httpClientFactory)
+    public MonitoringApiClient(IHttpClientFactory httpClientFactory, AuthService authService)
     {
         _httpClientFactory = httpClientFactory;
+        _authService = authService;
+    }
+
+    private HttpClient CreateBackendClient()
+    {
+        var client = _httpClientFactory.CreateClient("BackendApi");
+
+        if (!string.IsNullOrWhiteSpace(_authService.Token))
+        {
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _authService.Token);
+        }
+        else
+        {
+            client.DefaultRequestHeaders.Authorization = null;
+        }
+
+        return client;
     }
 
     public async Task<List<SensorData>?> GetLatestAsync(
@@ -17,7 +37,7 @@ public class MonitoringApiClient
         string? equipmentId = null,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("BackendApi");
+        var client = CreateBackendClient();
 
         var queryParts = new List<string> { $"take={take}" };
 
@@ -37,7 +57,7 @@ public class MonitoringApiClient
 
     public async Task<List<SensorData>?> GetLatestAlertsAsync(int take, CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("BackendApi");
+        var client = CreateBackendClient();
         return await client.GetFromJsonAsync<List<SensorData>>($"api/monitoring/alerts?take={take}", cancellationToken);
     }
 
@@ -50,7 +70,7 @@ public class MonitoringApiClient
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("BackendApi");
+        var client = CreateBackendClient();
 
         var queryParts = new List<string>
         {
@@ -84,7 +104,7 @@ public class MonitoringApiClient
 
     public async Task<BackendHealthResponse?> GetHealthAsync(CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("BackendApi");
+        var client = CreateBackendClient();
         return await client.GetFromJsonAsync<BackendHealthResponse>("health", cancellationToken);
     }
 }

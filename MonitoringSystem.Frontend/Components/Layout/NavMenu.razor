@@ -1,37 +1,57 @@
 @inject AuthService AuthService
 @inject NavigationManager Navigation
+@implements IDisposable
 
 <nav class="top-nav" aria-label="주 메뉴">
-    <AuthorizeView>
-        <Authorized>
-            <NavLink class="top-nav-link" href="/live" Match="NavLinkMatch.Prefix">
+    @if (AuthService.IsAuthenticated)
+    {
+        <NavLink class="top-nav-link" href="/live" Match="NavLinkMatch.Prefix">
+            <span class="top-nav-icon" aria-hidden="true">●</span>
+            <span>실시간</span>
+        </NavLink>
+        @if (AuthService.Role is "Admin" or "Operator")
+        {
+            <NavLink class="top-nav-link" href="/history" Match="NavLinkMatch.Prefix">
                 <span class="top-nav-icon" aria-hidden="true">●</span>
-                <span>실시간</span>
+                <span>이력 조회</span>
             </NavLink>
-            <AuthorizeView Roles="Admin,Operator" Context="_">
-                <NavLink class="top-nav-link" href="/history" Match="NavLinkMatch.Prefix">
-                    <span class="top-nav-icon" aria-hidden="true">●</span>
-                    <span>이력 조회</span>
-                </NavLink>
-            </AuthorizeView>
-            <AuthorizeView Roles="Admin" Context="_">
-                <NavLink class="top-nav-link" href="/system-status">
-                    <span class="top-nav-icon" aria-hidden="true">●</span>
-                    <span>시스템 상태</span>
-                </NavLink>
-            </AuthorizeView>
-            <span class="top-nav-user">
-                @AuthService.Username (@AuthService.Role)
-            </span>
-            <button class="btn btn-sm btn-outline-light ms-2" @onclick="LogoutAsync">로그아웃</button>
-        </Authorized>
-        <NotAuthorized>
-            <NavLink class="top-nav-link" href="/login">로그인</NavLink>
-        </NotAuthorized>
-    </AuthorizeView>
+        }
+        @if (AuthService.Role is "Admin")
+        {
+            <NavLink class="top-nav-link" href="/system-status">
+                <span class="top-nav-icon" aria-hidden="true">●</span>
+                <span>시스템 상태</span>
+            </NavLink>
+        }
+        <div class="top-nav-user-area">
+            <span class="top-nav-user">@AuthService.Username 님</span>
+            <button class="top-nav-logout" @onclick="LogoutAsync">로그아웃</button>
+        </div>
+
+
+    }
+    else
+    {
+        <NavLink class="top-nav-link" href="/login">로그인</NavLink>
+    }
 </nav>
 
 @code {
+    protected override void OnInitialized()
+    {
+        AuthService.OnAuthStateChanged += OnAuthStateChanged;
+    }
+
+    private void OnAuthStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthService.OnAuthStateChanged -= OnAuthStateChanged;
+    }
+
     private async Task LogoutAsync()
     {
         await AuthService.LogoutAsync();

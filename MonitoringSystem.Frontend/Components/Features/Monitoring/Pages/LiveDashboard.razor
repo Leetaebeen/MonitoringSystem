@@ -169,10 +169,7 @@
     {
         if (!firstRender) return;
         await AuthService.TryRestoreFromSessionAsync();
-    }
 
-    protected override async Task OnInitializedAsync()
-    {
         try
         {
             await LoadInitialDataAsync();
@@ -181,6 +178,7 @@
         finally
         {
             _isLoading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 

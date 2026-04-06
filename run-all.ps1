@@ -1,8 +1,33 @@
-Write-Host "Monitoring System의 모든 프로젝트를 시작합니다..." -ForegroundColor Green
+﻿$projects = @(
+    @{
+        Title = "Monitoring Backend"
+        ProjectPath = ".\MonitoringSystem.Backend\MonitoringSystem.Backend.csproj"
+        Arguments = "--launch-profile http"
+    },
+    @{
+        Title = "Monitoring Frontend"
+        ProjectPath = ".\MonitoringSystem.Frontend\MonitoringSystem.Frontend.csproj"
+        Arguments = "--launch-profile http"
+    },
+    @{
+        Title = "Monitoring Simulator"
+        ProjectPath = ".\MonitoringSystem.Simulator\MonitoringSystem.Simulator.csproj"
+        Arguments = ""
+    }
+)
 
-# cmd.exe의 start 명령어를 사용하여 각각의 프로젝트를 새 창에서 실행하고 제목을 지정합니다.
-Start-Process "cmd.exe" -ArgumentList "/c start `"Backend API`" dotnet run --project .\MonitoringSystem.Backend\MonitoringSystem.Backend.csproj --launch-profile https"
-Start-Process "cmd.exe" -ArgumentList "/c start `"Simulator`" dotnet run --project .\MonitoringSystem.Simulator\MonitoringSystem.Simulator.csproj"
-Start-Process "cmd.exe" -ArgumentList "/c start `"Frontend`" dotnet run --project .\MonitoringSystem.Frontend\MonitoringSystem.Frontend.csproj --launch-profile https"
+Write-Host "Starting Monitoring System projects..." -ForegroundColor Green
 
-Write-Host "모든 프로젝트가 시작되었습니다!" -ForegroundColor Green
+foreach ($project in $projects) {
+    $command = "Set-Location '$PSScriptRoot'; " +
+        "Write-Host '$($project.Title)' -ForegroundColor Cyan; " +
+        "dotnet run --project `"$($project.ProjectPath)`" $($project.Arguments)"
+
+    Start-Process powershell.exe -ArgumentList @(
+        "-NoExit",
+        "-Command",
+        $command
+    )
+}
+
+Write-Host "Requested startup for backend, frontend, and simulator." -ForegroundColor Green

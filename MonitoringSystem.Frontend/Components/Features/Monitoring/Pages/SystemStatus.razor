@@ -3,6 +3,7 @@
 @attribute [Authorize(Roles = "Admin")]
 @using MonitoringSystem.Frontend.Services.Monitoring
 @inject MonitoringApiClient MonitoringApiClient
+@inject AuthService AuthService
 
 <PageTitle>시스템 상태</PageTitle>
 
@@ -71,7 +72,7 @@ else
         {
             <article class="check-card">
                 <header>
-                    <strong>@entry.Key</strong>
+                    <strong>@entry.Key</strong>s
                     <span class="badge @GetBadgeClass(entry.Value.Status)">@entry.Value.Status</span>
                 </header>
                 <p>@(string.IsNullOrWhiteSpace(entry.Value.Description) ? "설명 없음" : entry.Value.Description)</p>
@@ -90,9 +91,13 @@ else
     private KeyValuePair<string, BackendHealthCheckEntry>? SlowestCheck
         => _health?.Checks.OrderByDescending(x => x.Value.DurationMs).FirstOrDefault();
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender) return;
+
+        await AuthService.TryRestoreFromSessionAsync();
         await LoadAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task LoadAsync()

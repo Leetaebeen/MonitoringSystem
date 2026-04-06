@@ -5,6 +5,7 @@
 @using MonitoringSystem.Frontend.Services.Monitoring
 @using MonitoringSystem.Shared.Models
 @inject MonitoringApiClient MonitoringApiClient
+@inject AuthService AuthService
 
 <PageTitle>이력 조회</PageTitle>
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -182,10 +183,14 @@
     // 데이터 보관
     private readonly List<SensorData> _items = new();
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender) return;
+
+        await AuthService.TryRestoreFromSessionAsync();
         ApplyQuickRange(1); // 초기 로딩 시 최근 1시간으로 설정
         await LoadHistoryAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task LoadHistoryAsync()
