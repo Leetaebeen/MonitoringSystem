@@ -4,6 +4,7 @@ using MonitoringSystem.Backend.HealthChecks;
 using MonitoringSystem.Backend.BackgroundServices;
 using MonitoringSystem.Backend.Data;
 using MonitoringSystem.Backend.Hubs;
+using MonitoringSystem.Backend.Services.Kafka;
 using MonitoringSystem.Backend.Services.Monitoring;
 using MonitoringSystem.Backend.Services.Realtime;
 using Serilog;
@@ -40,7 +41,9 @@ builder.Services.AddDbContext<MonitoringDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IMonitoringQueryService, MonitoringQueryService>();
 builder.Services.AddSingleton<IMonitoringRealtimePublisher, MonitoringRealtimePublisher>();
+builder.Services.AddSingleton<KafkaDlqProducer>();
 builder.Services.AddHostedService<KafkaConsumerBackgroundService>();
+builder.Services.AddHostedService<DlqConsumerBackgroundService>();
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", failureStatus: HealthStatus.Unhealthy)
     .AddCheck<KafkaHealthCheck>("kafka", failureStatus: HealthStatus.Unhealthy)

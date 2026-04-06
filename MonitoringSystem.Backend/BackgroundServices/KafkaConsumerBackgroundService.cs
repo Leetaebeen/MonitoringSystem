@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 using MonitoringSystem.Backend.Data;
+using MonitoringSystem.Backend.Services.Kafka;
 using MonitoringSystem.Backend.Services.Realtime;
 using MonitoringSystem.Shared.Models;
 using System.Text.Json;
@@ -11,17 +12,20 @@ public class KafkaConsumerBackgroundService : BackgroundService
     private readonly IConfiguration _configuration;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IMonitoringRealtimePublisher _realtimePublisher;
+    private readonly KafkaDlqProducer _dlqProducer;
     private readonly ILogger<KafkaConsumerBackgroundService> _logger;
 
     public KafkaConsumerBackgroundService(
         IConfiguration configuration,
         IServiceScopeFactory scopeFactory,
         IMonitoringRealtimePublisher realtimePublisher,
+        KafkaDlqProducer dlqProducer,
         ILogger<KafkaConsumerBackgroundService> logger)
     {
         _configuration = configuration;
         _scopeFactory = scopeFactory;
         _realtimePublisher = realtimePublisher;
+        _dlqProducer = dlqProducer;
         _logger = logger;
     }
 
@@ -46,36 +50,61 @@ public class KafkaConsumerBackgroundService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            ConsumeResult<Ignore, string>? result = null;
             try
             {
-                var result = consumer.Consume(stoppingToken);
+                result = consumer.Consume(stoppingToken);
                 if (result?.Message?.Value is null)
                 {
                     continue;
                 }
 
-                var sensorData = JsonSerializer.Deserialize<SensorData>(result.Message.Value);
-                if (sensorData is null)
+                SensorData? sensorData;
+                try
                 {
-                    _logger.LogWarning("Received invalid Kafka message: {Message}", result.Message.Value);
+                    sensorData = JsonSerializer.Deserialize<SensorData>(result.Message.Value);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "JSON 역직렬화 실패. DLQ로 이동. Payload={Payload}", result.Message.Value);
+                    await _dlqProducer.SendAsync(topic, result.Message.Value, ex, stoppingToken);
+                    consumer.Commit(result);
                     continue;
                 }
 
-                using var scope = _scopeFactory.CreateScope();
-                var dbContext = scope.ServiceProvider.GetRequiredService<MonitoringDbContext>();
+                if (sensorData is null)
+                {
+                    var ex = new InvalidOperationException("역직렬화 결과가 null입니다.");
+                    _logger.LogWarning("Null 역직렬화 결과. DLQ로 이동. Payload={Payload}", result.Message.Value);
+                    await _dlqProducer.SendAsync(topic, result.Message.Value, ex, stoppingToken);
+                    consumer.Commit(result);
+                    continue;
+                }
 
-                dbContext.SensorData.Add(sensorData);
-                await dbContext.SaveChangesAsync(stoppingToken);
+                try
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var dbContext = scope.ServiceProvider.GetRequiredService<MonitoringDbContext>();
 
-                await _realtimePublisher.PublishSensorDataAsync(sensorData, stoppingToken);
+                    dbContext.SensorData.Add(sensorData);
+                    await dbContext.SaveChangesAsync(stoppingToken);
 
-                consumer.Commit(result);
+                    await _realtimePublisher.PublishSensorDataAsync(sensorData, stoppingToken);
 
-                _logger.LogInformation(
-                    "Saved sensor data. EquipmentId={EquipmentId}, Temperature={Temperature}, LogTime={LogTime}",
-                    sensorData.EquipmentId,
-                    sensorData.Temperature,
-                    sensorData.LogTime);
+                    consumer.Commit(result);
+
+                    _logger.LogInformation(
+                        "Saved sensor data. EquipmentId={EquipmentId}, Temperature={Temperature}, LogTime={LogTime}",
+                        sensorData.EquipmentId,
+                        sensorData.Temperature,
+                        sensorData.LogTime);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(ex, "DB 저장 또는 SignalR 전송 실패. DLQ로 이동. EquipmentId={EquipmentId}", sensorData.EquipmentId);
+                    await _dlqProducer.SendAsync(topic, result.Message.Value, ex, stoppingToken);
+                    consumer.Commit(result);
+                }
             }
             catch (OperationCanceledException)
             {
