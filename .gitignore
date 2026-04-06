@@ -6,6 +6,9 @@
 # Secrets - 로컬 환경 설정 (비밀번호 등 민감 정보 포함)
 appsettings.Development.json
 
+# Claude Code 로컬 설정
+.claude/
+
 # User-specific files
 *.rsuser
 *.suo
