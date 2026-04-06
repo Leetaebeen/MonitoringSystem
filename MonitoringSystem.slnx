@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="MonitoringSystem.Backend/MonitoringSystem.Backend.csproj" Id="023dbd23-edee-435c-abac-6e5e4bc6df6a" />
+  <Project Path="MonitoringSystem.Frontend/MonitoringSystem.Frontend.csproj" Id="21a66787-f36e-4d31-aab1-04c340d33bc7" />
+  <Project Path="MonitoringSystem.Shared/MonitoringSystem.Shared.csproj" Id="edce54e3-2c4f-4af7-b9cc-aaacb55e9e90" />
+  <Project Path="MonitoringSystem.Simulator/MonitoringSystem.Simulator.csproj" />
+</Solution>

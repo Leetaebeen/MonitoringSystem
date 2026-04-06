@@ -1,0 +1,350 @@
+@page "/history"
+@* 핵심 해결책: 페이지 상호작용 활성화 (WebAssembly를 쓴다면 InteractiveWebAssembly로 변경하세요) *@
+@rendermode InteractiveServer 
+
+@using MonitoringSystem.Frontend.Services.Monitoring
+@using MonitoringSystem.Shared.Models
+@inject MonitoringApiClient MonitoringApiClient
+
+<PageTitle>이력 조회</PageTitle>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>이력 조회</h1>
+</div>
+
+<div class="card mb-3 shadow-sm">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-lg-3 col-md-6">
+                <label class="form-label text-muted small">시작 일시</label>
+                <div class="d-flex gap-2">
+                    <input type="date" class="form-control" @bind="_fromDate" />
+                    <input type="time" class="form-control" @bind="_fromTime" />
+                </div>
+            </div>
+            
+            <div class="col-lg-3 col-md-6">
+                <label class="form-label text-muted small">종료 일시</label>
+                <div class="d-flex gap-2">
+                    <input type="date" class="form-control" @bind="_toDate" />
+                    <input type="time" class="form-control" @bind="_toTime" />
+                </div>
+            </div>
+
+            <div class="col-lg-2 col-md-4">
+                <label class="form-label text-muted small">라인 ID</label>
+                <input class="form-control" placeholder="예: LINE-A" @bind="_lineIdFilter" />
+            </div>
+
+            <div class="col-lg-2 col-md-4">
+                <label class="form-label text-muted small">설비 ID</label>
+                <input class="form-control" placeholder="예: EQ-001" @bind="_equipmentIdFilter" />
+            </div>
+
+            <div class="col-lg-2 col-md-4">
+                <label class="form-label text-muted small">페이지 크기</label>
+                <select class="form-select" @bind="_pageSize">
+                    <option value="20">20개씩 보기</option>
+                    <option value="50">50개씩 보기</option>
+                    <option value="100">100개씩 보기</option>
+                </select>
+            </div>
+
+            <div class="col-12 d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => ApplyQuickRangeAsync(1)">최근 1시간</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => ApplyQuickRangeAsync(6)">최근 6시간</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => ApplyQuickRangeAsync(24)">최근 24시간</button>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @onclick="ResetFilterAsync" disabled="@_isLoading">초기화</button>
+                    <button class="btn btn-primary px-4" @onclick="ApplyFilterAsync" disabled="@_isLoading">
+                        @if (_isLoading) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        조회
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-2 text-muted small">
+    <div>
+        <span class="me-3"><i class="bi bi-funnel"></i> 조건: <strong>@GetFilterLabel()</strong></span>
+        <span><i class="bi bi-list-ol"></i> 총 <strong>@_totalCount.ToString("N0")</strong>건</span>
+    </div>
+    <div>페이지: <strong>@_page / @Math.Max(_totalPages, 1)</strong></div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_errorMessage))
+{
+    <div class="alert alert-danger" role="alert">@_errorMessage</div>
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="table-responsive">
+        <table class="table table-hover table-striped mb-0 text-center align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>수집 시각</th>
+                    <th>라인</th>
+                    <th>설비</th>
+                    <th>상태</th>
+                    <th>온도 (°C)</th>
+                    <th>압력 (bar)</th>
+                    <th>진동 (mm/s)</th>
+                    <th>RPM</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_isLoading)
+                {
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <div class="spinner-border text-primary mb-2" role="status"></div>
+                            <div>데이터를 불러오는 중입니다...</div>
+                        </td>
+                    </tr>
+                }
+                else if (!_items.Any())
+                {
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">조회 결과가 없습니다.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var item in _items)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@item.LogTime.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td>@item.LineId</td>
+                            <td>@item.EquipmentId</td>
+                            <td>
+                                <span class="badge @(item.IsAlert ? "bg-danger" : "bg-success")">
+                                    @(item.IsAlert ? "경고" : "정상")
+                                </span>
+                            </td>
+                            <td>@item.Temperature.ToString("F1")</td>
+                            <td>@item.PressureBar.ToString("F2")</td>
+                            <td>@item.VibrationMmS.ToString("F2")</td>
+                            <td>@item.Rpm.ToString("N0")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (_totalPages > 1)
+{
+    <div class="d-flex justify-content-center">
+        <ul class="pagination">
+            <li class="page-item @(_page <= 1 ? "disabled" : "")">
+                <button class="page-link" @onclick="PrevPageAsync" disabled="@_isLoading">이전</button>
+            </li>
+            
+            @foreach (var pageNum in GetVisiblePageButtons())
+            {
+                <li class="page-item @(pageNum == _page ? "active" : "")">
+                    <button class="page-link" @onclick="() => GoToPageAsync(pageNum)" disabled="@_isLoading">@pageNum</button>
+                </li>
+            }
+            
+            <li class="page-item @(_page >= _totalPages ? "disabled" : "")">
+                <button class="page-link" @onclick="NextPageAsync" disabled="@_isLoading">다음</button>
+            </li>
+        </ul>
+    </div>
+}
+
+@code {
+    // 필터 상태
+    private DateOnly _fromDate;
+    private TimeOnly _fromTime;
+    private DateOnly _toDate;
+    private TimeOnly _toTime;
+    private string? _lineIdFilter;
+    private string? _equipmentIdFilter;
+    
+    // 적용된 필터 상태 (조회 버튼을 눌렀을 때만 갱신)
+    private string? _appliedLineIdFilter;
+    private string? _appliedEquipmentIdFilter;
+    
+    // 페이징 및 UI 상태
+    private int _page = 1;
+    private int _pageSize = 20;
+    private int _totalCount;
+    private int _totalPages;
+    private bool _isLoading;
+    private string? _errorMessage;
+    
+    // 데이터 보관
+    private readonly List<SensorData> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ApplyQuickRange(1); // 초기 로딩 시 최근 1시간으로 설정
+        await LoadHistoryAsync();
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        if (_isLoading) return; // 중복 호출 방지
+
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            if (!TryGetRangeUtc(out var fromUtc, out var toUtc))
+            {
+                ShowError("시작/종료 시각 형식이 올바르지 않습니다.");
+                return;
+            }
+
+            if (fromUtc > toUtc)
+            {
+                ShowError("시작 시각은 종료 시각보다 이전이어야 합니다.");
+                return;
+            }
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15)); // 타임아웃 약간 넉넉하게
+            var result = await MonitoringApiClient.GetHistoryAsync(
+                fromUtc, toUtc, _appliedLineIdFilter, _appliedEquipmentIdFilter, _page, _pageSize, cts.Token);
+
+            _items.Clear();
+            
+            if (result is not null)
+            {
+                _page = result.Page;
+                _totalCount = result.TotalCount;
+                _totalPages = result.TotalPages;
+                _items.AddRange(result.Items);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            ShowError("데이터 조회 시간이 초과되었습니다. 조회 범위를 줄여보세요.");
+        }
+        catch (Exception ex)
+        {
+            ShowError($"조회 중 오류가 발생했습니다: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged(); // 중요: 비동기 작업 후 UI 강제 업데이트 보장
+        }
+    }
+
+    // --- 액션 메서드 ---
+
+    private async Task ApplyFilterAsync() 
+    {
+        _appliedLineIdFilter = _lineIdFilter?.Trim();
+        _appliedEquipmentIdFilter = _equipmentIdFilter?.Trim();
+        _page = 1;
+        await LoadHistoryAsync();
+    }
+
+    private async Task ResetFilterAsync()
+    {
+        ApplyQuickRange(1);
+        _lineIdFilter = null;
+        _equipmentIdFilter = null;
+        _appliedLineIdFilter = null;
+        _appliedEquipmentIdFilter = null;
+        _page = 1;
+        await LoadHistoryAsync();
+    }
+
+    private async Task ApplyQuickRangeAsync(int hours)
+    {
+        ApplyQuickRange(hours);
+        _page = 1;
+        await LoadHistoryAsync();
+    }
+
+    // --- 페이징 제어 ---
+
+    private async Task PrevPageAsync()
+    {
+        if (_page > 1) { _page--; await LoadHistoryAsync(); }
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (_page < Math.Max(_totalPages, 1)) { _page++; await LoadHistoryAsync(); }
+    }
+
+    private async Task GoToPageAsync(int pageNumber)
+    {
+        if (pageNumber >= 1 && pageNumber <= _totalPages && pageNumber != _page)
+        {
+            _page = pageNumber;
+            await LoadHistoryAsync();
+        }
+    }
+
+    // --- 유틸리티 메서드 ---
+
+    private void ApplyQuickRange(int hours)
+    {
+        var now = DateTime.Now;
+        var past = now.AddHours(-Math.Max(hours, 1));
+        
+        _fromDate = DateOnly.FromDateTime(past);
+        _fromTime = TimeOnly.FromDateTime(past);
+        _toDate = DateOnly.FromDateTime(now);
+        _toTime = TimeOnly.FromDateTime(now);
+    }
+
+    private bool TryGetRangeUtc(out DateTime fromUtc, out DateTime toUtc)
+    {
+        try
+        {
+            var fromLocal = _fromDate.ToDateTime(_fromTime, DateTimeKind.Local);
+            var toLocal = _toDate.ToDateTime(_toTime, DateTimeKind.Local);
+            fromUtc = fromLocal.ToUniversalTime();
+            toUtc = toLocal.ToUniversalTime();
+            return true;
+        }
+        catch
+        {
+            fromUtc = default;
+            toUtc = default;
+            return false;
+        }
+    }
+
+    private string GetFilterLabel()
+    {
+        var line = string.IsNullOrWhiteSpace(_appliedLineIdFilter) ? "전체" : _appliedLineIdFilter;
+        var equipment = string.IsNullOrWhiteSpace(_appliedEquipmentIdFilter) ? "전체" : _appliedEquipmentIdFilter;
+        return $"라인: {line} / 설비: {equipment}";
+    }
+
+    private IEnumerable<int> GetVisiblePageButtons()
+    {
+        var max = Math.Max(_totalPages, 1);
+        var start = Math.Max(1, _page - 2);
+        var end = Math.Min(max, start + 4);
+        
+        // 버튼을 항상 5개씩 유지하기 위한 보정
+        if (end - start < 4)
+        {
+            start = Math.Max(1, end - 4);
+        }
+
+        return Enumerable.Range(start, end - start + 1);
+    }
+
+    private void ShowError(string message)
+    {
+        _errorMessage = message;
+        _items.Clear();
+        _totalCount = 0;
+        _totalPages = 0;
+    }
+}

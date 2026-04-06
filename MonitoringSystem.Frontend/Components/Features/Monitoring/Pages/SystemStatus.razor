@@ -1,0 +1,126 @@
+@page "/system-status"
+@rendermode InteractiveServer
+@using MonitoringSystem.Frontend.Services.Monitoring
+@inject MonitoringApiClient MonitoringApiClient
+
+<PageTitle>시스템 상태</PageTitle>
+
+<h1>시스템 상태</h1>
+
+<div class="status-toolbar">
+    <button class="btn btn-primary" @onclick="LoadAsync" disabled="@_isLoading">새로고침</button>
+    <span class="text-secondary">현재 백엔드 구성요소 상태를 요약해서 보여줍니다.</span>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_errorMessage))
+{
+    <div class="alert alert-danger" role="alert">@_errorMessage</div>
+}
+
+@if (_isLoading)
+{
+    <div class="text-secondary">상태 조회 중...</div>
+}
+else if (_health is null)
+{
+    <div class="alert alert-warning" role="alert">상태 정보를 불러오지 못했습니다.</div>
+}
+else
+{
+    <div class="status-kpi-grid mb-2">
+        <div class="status-kpi-card">
+            <div class="status-kpi-label">전체 상태</div>
+            <div class="status-kpi-value"><span class="badge @GetBadgeClass(_health.Status)">@_health.Status</span></div>
+        </div>
+        <div class="status-kpi-card">
+            <div class="status-kpi-label">총 소요 시간</div>
+            <div class="status-kpi-value">@Math.Round(_health.TotalDurationMs, 2) ms</div>
+        </div>
+        <div class="status-kpi-card">
+            <div class="status-kpi-label">비정상 항목</div>
+            <div class="status-kpi-value">@UnhealthyCount 개</div>
+        </div>
+        <div class="status-kpi-card">
+            <div class="status-kpi-label">경고 항목</div>
+            <div class="status-kpi-value">@DegradedCount 개</div>
+        </div>
+    </div>
+
+    <div class="status-highlight card mb-3">
+        <div class="card-body">
+            <h5 class="card-title">가장 느린 체크</h5>
+            @if (SlowestCheck is null)
+            {
+                <div class="text-secondary">체크 항목이 없습니다.</div>
+            }
+            else
+            {
+                <div class="highlight-row">
+                    <strong>@SlowestCheck.Value.Key</strong>
+                    <span class="badge @GetBadgeClass(SlowestCheck.Value.Value.Status)">@SlowestCheck.Value.Value.Status</span>
+                    <span>@Math.Round(SlowestCheck.Value.Value.DurationMs, 2) ms</span>
+                </div>
+                <div class="text-secondary">@(string.IsNullOrWhiteSpace(SlowestCheck.Value.Value.Description) ? "설명 없음" : SlowestCheck.Value.Value.Description)</div>
+            }
+        </div>
+    </div>
+
+    <div class="check-grid">
+        @foreach (var entry in _health.Checks.OrderBy(x => x.Key))
+        {
+            <article class="check-card">
+                <header>
+                    <strong>@entry.Key</strong>
+                    <span class="badge @GetBadgeClass(entry.Value.Status)">@entry.Value.Status</span>
+                </header>
+                <p>@(string.IsNullOrWhiteSpace(entry.Value.Description) ? "설명 없음" : entry.Value.Description)</p>
+                <footer>@Math.Round(entry.Value.DurationMs, 2) ms</footer>
+            </article>
+        }
+    </div>
+}
+
+@code {
+    private BackendHealthResponse? _health;
+    private bool _isLoading;
+    private string? _errorMessage;
+    private int UnhealthyCount => _health?.Checks.Count(x => x.Value.Status.Equals("Unhealthy", StringComparison.OrdinalIgnoreCase)) ?? 0;
+    private int DegradedCount => _health?.Checks.Count(x => x.Value.Status.Equals("Degraded", StringComparison.OrdinalIgnoreCase)) ?? 0;
+    private KeyValuePair<string, BackendHealthCheckEntry>? SlowestCheck
+        => _health?.Checks.OrderByDescending(x => x.Value.DurationMs).FirstOrDefault();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            _health = await MonitoringApiClient.GetHealthAsync(cts.Token);
+        }
+        catch (Exception ex)
+        {
+            _health = null;
+            _errorMessage = $"시스템 상태 조회 실패: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string GetBadgeClass(string? status)
+        => status?.ToLowerInvariant() switch
+        {
+            "healthy" => "bg-success",
+            "degraded" => "bg-warning text-dark",
+            "unhealthy" => "bg-danger",
+            _ => "bg-secondary"
+        };
+}

@@ -1,0 +1,59 @@
+.top-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.top-nav ::deep .top-nav-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-width: 92px;
+    padding: 0.5rem 0.85rem;
+    border-radius: 10px;
+    text-decoration: none;
+    color: #2f466f;
+    font-size: 0.9rem;
+    font-weight: 600;
+    position: relative;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.top-nav ::deep .top-nav-link::after {
+    content: "";
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 4px;
+    height: 2px;
+    border-radius: 999px;
+    background: #1d4ed8;
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 0.18s ease;
+}
+
+.top-nav ::deep .top-nav-link:hover::after,
+.top-nav ::deep a.active::after {
+    transform: scaleX(1);
+}
+
+.top-nav ::deep .top-nav-link:hover {
+    background: #eef4ff;
+    color: #1f3661;
+}
+
+.top-nav ::deep a.active {
+    background: #2f5fb3;
+    color: #ffffff;
+}
+
+.top-nav ::deep .top-nav-icon {
+    font-size: 0.62rem;
+    color: #93c5fd;
+}
+
+.top-nav ::deep a.active .top-nav-icon {
+    color: #ffffff;
+}

@@ -1,0 +1,25 @@
+﻿@inherits LayoutComponentBase
+
+<div class="shell">
+    <header class="shell-header">
+        <div class="shell-brand">
+            <a class="shell-title-link" href="/">
+                <span class="shell-title">모니터링 시스템</span>
+            </a>
+            <span class="shell-subtitle">운영 대시보드</span>
+        </div>
+        <NavMenu />
+    </header>
+
+    <main class="shell-main">
+        <article class="content">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    화면 오류가 발생했습니다.
+    <a href="." class="reload">새로고침</a>
+    <span class="dismiss">🗙</span>
+</div>

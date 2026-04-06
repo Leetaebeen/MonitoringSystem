@@ -1,0 +1,221 @@
+@page "/"
+@page "/live"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@using MonitoringSystem.Frontend.Services.Monitoring
+@using MonitoringSystem.Shared.Models
+@inject MonitoringApiClient MonitoringApiClient
+@inject MonitoringHubClient MonitoringHubClient
+
+<PageTitle>실시간 대시보드</PageTitle>
+
+<h1>실시간 대시보드</h1>
+
+<div class="status-bar">
+    <span class="badge @GetConnectionBadgeClass()">@_connectionState</span>
+    <span>실시간 반영 주기: <strong>5초</strong></span>
+    @if (_isLoading)
+    {
+        <span class="text-secondary">초기 데이터 로딩 중...</span>
+    }
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_errorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @_errorMessage
+    </div>
+}
+
+@if (_latestData is null && !_isLoading)
+{
+    <div class="alert alert-warning" role="alert">
+        표시할 센서 데이터가 없습니다.
+    </div>
+}
+
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-label">수신 건수</div>
+        <div class="kpi-value">@_recentData.Count</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">알람 건수</div>
+        <div class="kpi-value">@AlertCount</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">평균 온도</div>
+        <div class="kpi-value">@AverageTemperature.ToString("N1") °C</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">평균 진동</div>
+        <div class="kpi-value">@AverageVibration.ToString("N1") mm/s</div>
+    </div>
+</div>
+
+@if (_latestData is not null)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title">최신 스냅샷</h5>
+            <div class="snapshot-grid">
+                <div><strong>라인</strong><span>@_latestData.LineId</span></div>
+                <div><strong>설비</strong><span>@_latestData.EquipmentId (@_latestData.EquipmentType)</span></div>
+                <div><strong>온도</strong><span>@_latestData.Temperature °C</span></div>
+                <div><strong>압력</strong><span>@_latestData.PressureBar bar</span></div>
+                <div><strong>진동</strong><span>@_latestData.VibrationMmS mm/s</span></div>
+                <div><strong>RPM</strong><span>@_latestData.Rpm</span></div>
+                <div><strong>상태</strong><span>@_latestData.Status (@(_latestData.IsAlert ? "알람" : "정상"))</span></div>
+                <div><strong>수집 시각</strong><span>@_latestData.LogTime.ToLocalTime()</span></div>
+            </div>
+        </div>
+    </div>
+}
+
+<h4>최근 데이터</h4>
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-striped table-sm recent-table mb-0">
+            <thead>
+                <tr>
+                    <th>시각</th>
+                    <th>라인</th>
+                    <th>설비</th>
+                    <th>온도(°C)</th>
+                    <th>압력(bar)</th>
+                    <th>진동(mm/s)</th>
+                    <th>RPM</th>
+                    <th>상태</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in _recentData)
+                {
+                    <tr>
+                        <td class="time-cell">@item.LogTime.ToLocalTime().ToString("HH:mm:ss")</td>
+                        <td>@item.LineId</td>
+                        <td>@item.EquipmentId</td>
+                        <td>@item.Temperature.ToString("N1")</td>
+                        <td>@item.PressureBar.ToString("N2")</td>
+                        <td>@item.VibrationMmS.ToString("N2")</td>
+                        <td>@item.Rpm</td>
+                        <td><span class="badge @(item.IsAlert ? "bg-danger" : "bg-success")">@item.Status</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private const int MaxRows = 20;
+    private const int DefaultIntervalSeconds = 5;
+
+    private string _connectionState = "연결 중";
+    private string? _errorMessage;
+    private bool _isLoading = true;
+    private SensorData? _latestData;
+    private readonly List<SensorData> _recentData = [];
+    private DateTime _lastRealtimeAppliedAtUtc = DateTime.MinValue;
+
+    private int AlertCount => _recentData.Count(x => x.IsAlert);
+    private double AverageTemperature => _recentData.Count == 0 ? 0 : _recentData.Average(x => x.Temperature);
+    private double AverageVibration => _recentData.Count == 0 ? 0 : _recentData.Average(x => x.VibrationMmS);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadInitialDataAsync();
+            await ConnectHubAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadInitialDataAsync()
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            var latest = await MonitoringApiClient.GetLatestAsync(
+                MaxRows,
+                null,
+                null,
+                cts.Token);
+
+            _latestData = null;
+            _recentData.Clear();
+            if (latest is { Count: > 0 })
+            {
+                _recentData.AddRange(latest.Take(MaxRows));
+                _latestData = _recentData[0];
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"초기 데이터 로딩 실패: {ex.Message}";
+        }
+    }
+
+    private async Task ConnectHubAsync()
+    {
+        try
+        {
+            await MonitoringHubClient.StartAsync(
+                async data =>
+                {
+                    var now = DateTime.UtcNow;
+                    if (now - _lastRealtimeAppliedAtUtc < TimeSpan.FromSeconds(DefaultIntervalSeconds))
+                    {
+                        return;
+                    }
+
+                    _lastRealtimeAppliedAtUtc = now;
+                    ApplyRealtimeData(data);
+
+                    await InvokeAsync(StateHasChanged);
+                },
+                async state =>
+                {
+                    _connectionState = state;
+                    await InvokeAsync(StateHasChanged);
+                });
+        }
+        catch (Exception ex)
+        {
+            _connectionState = "백엔드 미연결";
+            _errorMessage = string.IsNullOrWhiteSpace(_errorMessage)
+                ? $"실시간 연결 실패: {ex.Message}"
+                : $"{_errorMessage} / 실시간 연결 실패: {ex.Message}";
+        }
+    }
+
+    private void ApplyRealtimeData(SensorData data)
+    {
+        _latestData = data;
+        _recentData.Insert(0, data);
+
+        if (_recentData.Count > MaxRows)
+        {
+            _recentData.RemoveAt(_recentData.Count - 1);
+        }
+    }
+
+    private string GetConnectionBadgeClass()
+        => _connectionState switch
+        {
+            "연결됨" => "bg-success",
+            "재연결 중" => "bg-warning text-dark",
+            "연결 끊김" => "bg-secondary",
+            "백엔드 미연결" => "bg-danger",
+            _ => "bg-info text-dark"
+        };
+
+    public async ValueTask DisposeAsync()
+    {
+        await MonitoringHubClient.DisposeAsync();
+    }
+}

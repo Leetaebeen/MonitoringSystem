@@ -1,0 +1,15 @@
+﻿@page "/test"
+@rendermode InteractiveServer
+
+<h3>격리 테스트</h3>
+<button class="btn btn-danger" @onclick="OnClickTest">이거 눌러보세요</button>
+<div>버튼 누른 횟수: @count</div>
+
+@code {
+    private int count = 0;
+    private void OnClickTest()
+    {
+        count++;
+        Console.WriteLine($"[서버 확인용] 버튼 클릭됨! 현재 카운트: {count}");
+    }
+}

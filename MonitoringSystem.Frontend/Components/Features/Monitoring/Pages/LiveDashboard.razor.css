@@ -1,0 +1,84 @@
+h1 {
+    margin-bottom: 1rem;
+}
+
+h4 {
+    margin-top: 1.2rem;
+    margin-bottom: 0.7rem;
+}
+
+.status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    align-items: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 0.9rem;
+    color: #475569;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.7rem;
+    margin-bottom: 0.9rem;
+}
+
+.kpi-card {
+    border: 1px solid #dbe4ef;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 0.85rem;
+}
+
+.kpi-label {
+    color: #64748b;
+    font-size: 0.82rem;
+}
+
+.kpi-value {
+    margin-top: 0.3rem;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.snapshot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 0.6rem;
+}
+
+.snapshot-grid div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid #edf2f7;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.snapshot-grid strong {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.snapshot-grid span {
+    color: #0f172a;
+}
+
+.recent-table td,
+.recent-table th {
+    padding-top: 0.62rem;
+    padding-bottom: 0.62rem;
+    vertical-align: middle;
+}
+
+.time-cell {
+    font-family: Consolas, 'Courier New', monospace;
+    color: #475569;
+}
