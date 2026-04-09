@@ -87,6 +87,14 @@
     </div>
 </div>
 
+@* 온도·진동 시계열 차트 — SensorChart 컴포넌트(JS Interop) *@
+<div class="card mb-3">
+    <div class="card-body">
+        <h5 class="card-title">온도 / 진동 추이 (최근 @(MaxRows)건)</h5>
+        <SensorChart Data="@_recentData" />
+    </div>
+</div>
+
 @if (_latestData is not null)
 {
     <div class="card mb-3">
